@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Ping Pong Online</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --surface-color: #1e293b;
+            --primary-color: #3b82f6;
+            --accent-color: #10b981;
+            --danger-color: #ef4444;
+            --paddle-me: #38bdf8;
+            --paddle-enemy: #f472b6;
+            --ball-color: #fbbf24;
+            --text-color: #f8fafc;
+            --game-width: 420px;
+            --game-height: 750px;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Outfit', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* UI Containers */
+        .ui-screen {
+            position: absolute;
+            width: 100%;
+            max-width: 400px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 100;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        /* PERBAIKAN: Tambahkan visibility: hidden agar benar-benar hilang */
+        .hidden { opacity: 0; pointer-events: none; transform: scale(0.95); visibility: hidden; transition: opacity 0.3s, transform 0.3s, visibility 0s linear 0.3s; }
+        .visible { opacity: 1; pointer-events: auto; transform: scale(1); visibility: visible; transition: opacity 0.3s, transform 0.3s; }
+
+        h1 { font-weight: 800; font-size: 2.5rem; margin: 0 0 0.5rem 0; background: linear-gradient(to right, var(--paddle-me), var(--paddle-enemy)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-weight: 600; margin-bottom: 1.5rem; }
+
+        input {
+            width: 100%; padding: 15px; margin-bottom: 15px;
+            border-radius: 12px; border: 2px solid var(--surface-color);
+            background: var(--bg-color); color: white;
+            font-family: inherit; font-size: 1rem; text-align: center;
+            transition: border-color 0.2s;
+        }
+        input:focus { outline: none; border-color: var(--primary-color); }
+
+        button {
+            width: 100%; padding: 15px; margin-bottom: 10px;
+            border: none; border-radius: 12px;
+            font-family: inherit; font-weight: 700; font-size: 1rem;
+            cursor: pointer; transition: transform 0.1s, filter 0.2s;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        button:active { transform: scale(0.98); }
+        .btn-primary { background: var(--primary-color); color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+        .btn-accent { background: var(--accent-color); color: white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); }
+        .btn-danger { background: var(--danger-color); color: white; }
+        
+        /* Game Area Scaler */
+        #game-wrapper {
+            width: var(--game-width);
+            height: var(--game-height);
+            position: relative;
+            transform-origin: center center;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            border-radius: 16px;
+            overflow: hidden;
+            background: #111827;
+            border: 4px solid #334155;
+            display: none; /* Default hidden */
+        }
+
+        #ping-display { position: absolute; top: 10px; right: 15px; font-size: 12px; color: rgba(255,255,255,0.4); z-index: 20; font-weight: bold; }
+        
+        #scoreboard {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+            display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+            padding: 40px 0; pointer-events: none; z-index: 1;
+        }
+        .score { font-size: 8rem; font-weight: 800; color: rgba(255,255,255,0.05); line-height: 1; }
+        .player-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; color: rgba(255,255,255,0.3); }
+
+        /* Game Elements */
+        #net {
+            position: absolute; top: 50%; left: 0; width: 100%; height: 2px;
+            background: repeating-linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.1) 10px, transparent 10px, transparent 20px);
+        }
+
+        .paddle { position: absolute; width: 25%; height: 22px; border-radius: 11px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 10; transition: transform 0.05s linear; }
+        #paddle-p1 { bottom: 40px; background: var(--paddle-me); box-shadow: 0 0 15px var(--paddle-me); }
+        #paddle-p2 { top: 40px; background: var(--paddle-enemy); box-shadow: 0 0 15px var(--paddle-enemy); }
+
+        #ball {
+            position: absolute; width: 22px; height: 22px; background: var(--ball-color);
+            border-radius: 50%; box-shadow: 0 0 15px var(--ball-color); z-index: 11;
+        }
+
+        #status-message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 30px;
+            font-weight: 700; font-size: 1.2rem; white-space: nowrap; z-index: 50;
+            opacity: 0; transition: opacity 0.2s; pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Overlay */
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 200;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #overlay.active { opacity: 1; pointer-events: auto; }
+        .code-box { font-size: 2.5rem; font-family: monospace; letter-spacing: 5px; color: var(--accent-color); margin: 20px 0; font-weight: bold; border: 2px dashed rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-ui" class="ui-screen visible">
+        <h1>NEON PONG</h1>
+        <p id="system-msg" style="color: var(--danger-color); font-size: 0.9rem; min-height: 1.5rem;"></p>
+        <input type="text" id="player-name" placeholder="Nama Panggilan" maxlength="10">
+        <button class="btn-primary" id="btn-find">Cari Lawan (Auto)</button>
+        <div style="display:flex; width:100%; gap:10px;">
+            <button class="btn-accent" id="btn-create" style="flex:1">Buat Room</button>
+            <button class="btn-accent" id="btn-join-mode" style="flex:1; background:var(--surface-color)">Gabung</button>
+        </div>
+        <div id="join-input-area" style="width:100%; display:none; margin-top:10px;">
+            <input type="text" id="room-id" placeholder="ID Room" style="text-transform:uppercase;">
+            <button class="btn-accent" id="btn-join-action">Masuk Room</button>
+        </div>
+    </div>
+
+    <div id="waiting-ui" class="ui-screen hidden">
+        <h2>Menunggu Lawan</h2>
+        <p style="opacity:0.7">Bagikan kode ini ke teman:</p>
+        <div class="code-box" id="display-code">XXXXX</div>
+        <button class="btn-primary" onclick="copyCode()">Salin Kode</button>
+        <button class="btn-danger" style="margin-top:20px" onclick="location.reload()">Batal</button>
+    </div>
+
+    <div id="game-wrapper">
+        <div id="ping-display">0 ms</div>
+        <div id="scoreboard">
+            <div style="text-align:center">
+                <div class="score" id="score-p2">0</div>
+                <div class="player-label" id="name-p2">Lawan</div>
+            </div>
+            <div style="text-align:center">
+                <div class="player-label" id="name-p1">Saya</div>
+                <div class="score" id="score-p1">0</div>
+            </div>
+        </div>
+        <div id="net"></div>
+        <div id="paddle-p2" class="paddle"></div>
+        <div id="paddle-p1" class="paddle"></div>
+        <div id="ball"></div>
+        <div id="status-message">TAP TO SERVE</div>
+        
+        <div id="overlay">
+            <h2 id="overlay-title">GAME OVER</h2>
+            <p id="overlay-desc" style="margin-bottom:30px; text-align:center; padding:0 20px;">Deskripsi</p>
+            <button class="btn-primary" onclick="location.reload()" style="max-width:200px">Menu Utama</button>
+        </div>
+    </div>
+
+<script>
+    // --- Config & State ---
+    const TABLE_WIDTH = 420;
+    const TABLE_HEIGHT = 750;
+    const PADDLE_WIDTH = TABLE_WIDTH * 0.25;
+    
+    // Auto-detect Websocket Protocol (Secure for Codespaces)
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const WS_URL = protocol + window.location.host;
+
+    let socket;
+    let localPlayer = { name: '', number: 0 };
+    let gameState = null;
+    let inputSeq = 0;
+    let pendingInputs = [];
+    let loopId;
+    let isTouchDown = false;
+    let pingInterval;
+
+    // --- DOM Elements ---
+    const els = {
+        login: document.getElementById('login-ui'),
+        waiting: document.getElementById('waiting-ui'),
+        gameWrapper: document.getElementById('game-wrapper'),
+        msg: document.getElementById('system-msg'),
+        nameIn: document.getElementById('player-name'),
+        codeDisp: document.getElementById('display-code'),
+        ping: document.getElementById('ping-display'),
+        paddle1: document.getElementById('paddle-p1'),
+        paddle2: document.getElementById('paddle-p2'),
+        ball: document.getElementById('ball'),
+        score1: document.getElementById('score-p1'),
+        score2: document.getElementById('score-p2'),
+        name1: document.getElementById('name-p1'),
+        name2: document.getElementById('name-p2'),
+        status: document.getElementById('status-message'),
+        overlay: document.getElementById('overlay'),
+        ovTitle: document.getElementById('overlay-title'),
+        ovDesc: document.getElementById('overlay-desc')
+    };
+
+    // --- Scaling Logic (Mobile Responsiveness) ---
+    function resizeGame() {
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const scale = Math.min(winW / TABLE_WIDTH, winH / TABLE_HEIGHT) * 0.95; // 95% margin
+        
+        els.gameWrapper.style.transform = `scale(${scale})`;
+        // Center the game wrapper manually
+    }
+    window.addEventListener('resize', resizeGame);
+    // Call resize initially if game is already visible
+    if(els.gameWrapper.style.display === 'block') resizeGame();
+
+    // --- WebSocket Logic ---
+    function connect() {
+        socket = new WebSocket(WS_URL);
+        socket.binaryType = 'arraybuffer';
+
+        socket.onopen = () => {
+            console.log("Connected");
+            const session = JSON.parse(localStorage.getItem('pong_session'));
+            if (session && session.gameId) {
+                socket.send(JSON.stringify({ type: 'reconnect', payload: session }));
+                els.msg.textContent = "Mencoba reconnect...";
+            }
+        };
+
+        socket.onmessage = (e) => {
+            if (e.data instanceof ArrayBuffer) {
+                handleBinaryState(e.data);
+            } else {
+                handleJSONMessage(JSON.parse(e.data));
+            }
+        };
+
+        socket.onclose = () => {
+            if (gameState) {
+                // Try auto-reconnect logic if in-game
+                setTimeout(connect, 2000); 
+                showOverlay("Koneksi Terputus", "Mencoba menyambung kembali...");
+            } else {
+                els.msg.textContent = "Server tidak terhubung.";
+            }
+        };
+    }
+
+    function handleBinaryState(buffer) {
+        const view = new DataView(buffer);
+        const serverTick = view.getUint32(0, true);
+        
+        const p1x = view.getFloat32(4, true);
+        const p2x = view.getFloat32(8, true);
+        const bx = view.getFloat32(12, true);
+        const by = view.getFloat32(16, true);
+        
+        const s1 = view.getUint8(28);
+        const s2 = view.getUint8(29);
+        const serving = view.getUint8(30);
+        const waiting = view.getUint8(31) === 1;
+
+        // Apply to DOM
+        if (localPlayer.number === 2) {
+            // Invert logic for P2 perspective
+            els.paddle1.style.transform = `translateX(${p2x}px)`; // My paddle (P2)
+            els.paddle2.style.transform = `translateX(${p1x}px)`; // Enemy (P1)
+            els.ball.style.transform = `translate(${bx}px, ${TABLE_HEIGHT - by - 22}px)`; // Invert Y
+            
+            els.score1.textContent = s2;
+            els.score2.textContent = s1;
+        } else {
+            // P1 Normal perspective
+            els.paddle1.style.transform = `translateX(${p1x}px)`;
+            els.paddle2.style.transform = `translateX(${p2x}px)`;
+            els.ball.style.transform = `translate(${bx}px, ${by}px)`;
+            
+            els.score1.textContent = s1;
+            els.score2.textContent = s2;
+        }
+
+        // Status Text
+        if (waiting) {
+            els.status.style.opacity = 1;
+            if (serving === localPlayer.number) els.status.textContent = "TAP UNTUK SERVIS";
+            else els.status.textContent = "MENUNGGU LAWAN";
+        } else {
+            els.status.style.opacity = 0;
+        }
+    }
+
+    function handleJSONMessage(data) {
+        switch(data.type) {
+            case 'pong':
+                els.ping.textContent = (Date.now() - data.payload.time) + " ms";
+                break;
+            case 'gameCreated':
+                // Tutup login, buka waiting
+                els.login.classList.remove('visible');
+                els.login.classList.add('hidden');
+                
+                els.waiting.classList.remove('hidden');
+                els.waiting.classList.add('visible');
+                
+                els.codeDisp.textContent = data.payload.gameId;
+                break;
+            case 'waitingForMatch':
+                els.msg.textContent = "Mencari lawan...";
+                break;
+            case 'gameStarted':
+                initGame(data.payload);
+                break;
+            case 'reconnectSuccess':
+                initGame(data.payload);
+                break;
+            case 'opponentReconnecting':
+                showOverlay("Lawan Terputus", "Menunggu mereka kembali...");
+                break;
+            case 'gameResumed':
+                els.overlay.classList.remove('active');
+                break;
+            case 'gameOver':
+                localStorage.removeItem('pong_session');
+                showOverlay("GAME OVER", `${data.payload.winnerName} Menang!`);
+                break;
+            case 'error':
+                els.msg.textContent = data.payload.message;
+                if(data.payload.isReconnectError) localStorage.removeItem('pong_session');
+                break;
+        }
+    }
+
+    // --- FUNGSI UTAMA YANG DIPERBAIKI ---
+    function initGame(payload) {
+        // 1. Tentukan Player Number & Name
+        localPlayer.number = (payload.p1_name === localPlayer.name) ? 1 : 2; 
+        if (payload.playerNum) localPlayer.number = payload.playerNum; // Override reconnect
+
+        localPlayer.name = (localPlayer.number === 1) ? payload.p1_name : payload.p2_name;
+        const enemyName = (localPlayer.number === 1) ? payload.p2_name : payload.p1_name;
+
+        // 2. Simpan Sesi
+        localStorage.setItem('pong_session', JSON.stringify({
+            gameId: payload.gameId,
+            reconnectToken: payload.reconnectToken
+        }));
+
+        // 3. PAKSA TUTUP SEMUA UI (LOGIN & WAITING)
+        // Gunakan remove/add untuk memastikan state benar
+        els.login.classList.remove('visible'); 
+        els.login.classList.add('hidden');
+        
+        els.waiting.classList.remove('visible');
+        els.waiting.classList.add('hidden');
+
+        // 4. Tampilkan Game Area
+        els.gameWrapper.style.display = 'block';
+        resizeGame(); // Hitung ulang skala agar pas di layar
+        
+        // 5. Update Info
+        els.name1.textContent = "SAYA (" + localPlayer.name + ")";
+        els.name2.textContent = enemyName;
+
+        // 6. Mulai Loop
+        gameState = true;
+        startPing();
+    }
+
+    // --- Inputs & Controls ---
+    function sendInput(xPos) {
+        if (!socket || socket.readyState !== 1) return;
+        inputSeq++;
+        socket.send(JSON.stringify({ 
+            type: 'input', 
+            payload: { seq: inputSeq, data: { paddle_x: xPos } } 
+        }));
+    }
+
+    function handleInput(clientX) {
+        if (!gameState) return;
+        const rect = els.gameWrapper.getBoundingClientRect();
+        // Calculate scale factor because element is scaled with CSS
+        const scaleX = TABLE_WIDTH / rect.width; 
+        
+        let relativeX = (clientX - rect.left) * scaleX;
+        let paddleX = relativeX - (PADDLE_WIDTH / 2);
+        
+        sendInput(paddleX);
+    }
+
+    // Touch & Mouse Handling
+    const track = (e) => {
+        if (isTouchDown) {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            handleInput(clientX);
+        }
+    };
+
+    els.gameWrapper.addEventListener('mousedown', (e) => { isTouchDown = true; track(e); });
+    els.gameWrapper.addEventListener('touchstart', (e) => { isTouchDown = true; track(e); }, {passive: false});
+    
+    window.addEventListener('mousemove', track);
+    window.addEventListener('touchmove', (e) => { 
+        if(isTouchDown) { e.preventDefault(); track(e); } 
+    }, {passive: false});
+
+    window.addEventListener('mouseup', () => { 
+        if(isTouchDown) handleTapServe();
+        isTouchDown = false; 
+    });
+    window.addEventListener('touchend', () => { 
+        if(isTouchDown) handleTapServe();
+        isTouchDown = false; 
+    });
+
+    function handleTapServe() {
+        if (els.status.style.opacity == 1 && els.status.textContent.includes("TAP")) {
+            socket.send(JSON.stringify({ type: 'serveBall' }));
+        }
+    }
+
+    // --- Helpers ---
+    function startPing() {
+        clearInterval(pingInterval);
+        pingInterval = setInterval(() => {
+            if(socket.readyState === 1) socket.send(JSON.stringify({ type: 'ping', payload: { time: Date.now() } }));
+        }, 2000);
+    }
+
+    function showOverlay(title, desc) {
+        els.ovTitle.textContent = title;
+        els.ovDesc.textContent = desc;
+        els.overlay.classList.add('active');
+    }
+
+    function copyCode() {
+        navigator.clipboard.writeText(els.codeDisp.textContent);
+        alert("Kode disalin!");
+    }
+
+    // UI Buttons
+    document.getElementById('btn-find').onclick = () => {
+        const name = els.nameIn.value.trim() || "Player";
+        localPlayer.name = name;
+        socket.send(JSON.stringify({ type: 'findMatch', payload: { playerName: name } }));
+    };
+    
+    document.getElementById('btn-create').onclick = () => {
+        const name = els.nameIn.value.trim() || "Player";
+        localPlayer.name = name;
+        socket.send(JSON.stringify({ type: 'create', payload: { playerName: name } }));
+    };
+
+    document.getElementById('btn-join-mode').onclick = () => {
+        document.getElementById('join-input-area').style.display = 'flex';
+        document.getElementById('btn-join-mode').style.display = 'none';
+    };
+
+    document.getElementById('btn-join-action').onclick = () => {
+        const name = els.nameIn.value.trim() || "Player";
+        const id = document.getElementById('room-id').value.trim();
+        if(!id) return alert("Masukkan ID Room");
+        localPlayer.name = name;
+        socket.send(JSON.stringify({ type: 'join', payload: { playerName: name, gameId: id } }));
+    };
+
+    // Start
+    connect();
+
+</script>
+</body>
+</html>
